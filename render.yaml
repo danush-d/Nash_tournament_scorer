@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: tournament-scorer
+    runtime: python
+    plan: starter            # a persistent disk needs a paid plan
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 --threads 4 -b 0.0.0.0:$PORT app:app
+    envVars:
+      - key: SCORER_USER
+        value: admin
+      - key: SCORER_PASS
+        sync: false          # you type this in the Render dashboard
+      - key: DB_PATH
+        value: /data/cricket.db
+      - key: COOKIE_SECURE
+        value: "1"
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
