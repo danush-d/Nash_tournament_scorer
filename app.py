@@ -34,7 +34,7 @@ class _Wrap:
 def init():
     c = _Wrap(_connect())
     c.execute("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
-    c.execute("CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, data TEXT NOT NULL, updated DOUBLE PRECISION NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS matches (id BIGINT PRIMARY KEY, data TEXT NOT NULL, updated DOUBLE PRECISION NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, pw TEXT NOT NULL, role TEXT NOT NULL)")
     r = c.execute("SELECT v FROM kv WHERE k='secret'").fetchone()
     key = r[0] if r else secrets.token_hex(32)
