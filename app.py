@@ -23,6 +23,9 @@ def init():
         c.execute("INSERT OR REPLACE INTO users VALUES(?,?,?)", (u, generate_password_hash(p), "scorer"))
         if gen:
             print("[setup] scorer login ->", u, "/", p, flush=True)
+    vu, vp = os.environ.get("VIEWER_USER"), os.environ.get("VIEWER_PASS")
+    if vu and vp:
+        c.execute("INSERT OR REPLACE INTO users VALUES(?,?,?)", (vu, generate_password_hash(vp), "viewer"))
     c.commit()
     c.close()
     return key
