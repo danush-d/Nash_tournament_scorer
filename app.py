@@ -1,16 +1,40 @@
-import json, os, re, secrets, sqlite3, time
+import json, os, re, secrets, time
 from datetime import timedelta
 from io import BytesIO
 from xml.sax.saxutils import escape
+import psycopg2
 from flask import Flask, abort, g, jsonify, redirect, request, send_file, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__, static_folder="static")
-DB = os.environ.get("DB_PATH", os.path.join(app.root_path, "cricket.db"))
+DATABASE_URL = os.environ["DATABASE_URL"]
+
+
+def _connect():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
+
+
+class _Wrap:
+    """Thin shim so call sites written for sqlite3's Connection.execute() keep working with psycopg2."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        cur = self._conn.cursor()
+        cur.execute(sql.replace("?", "%s"), params)
+        return cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
 def init():
-    c = sqlite3.connect(DB)
+    c = _Wrap(_connect())
     c.execute("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
-    c.execute("CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, data TEXT NOT NULL, updated REAL NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, data TEXT NOT NULL, updated DOUBLE PRECISION NOT NULL)")
     c.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, pw TEXT NOT NULL, role TEXT NOT NULL)")
     r = c.execute("SELECT v FROM kv WHERE k='secret'").fetchone()
     key = r[0] if r else secrets.token_hex(32)
@@ -20,12 +44,14 @@ def init():
     if p or not c.execute("SELECT 1 FROM users WHERE role='scorer'").fetchone():
         gen = not p
         p = p or secrets.token_urlsafe(8)
-        c.execute("INSERT OR REPLACE INTO users VALUES(?,?,?)", (u, generate_password_hash(p), "scorer"))
+        c.execute("INSERT INTO users VALUES(?,?,?) ON CONFLICT (username) DO UPDATE SET pw=EXCLUDED.pw, role=EXCLUDED.role",
+                   (u, generate_password_hash(p), "scorer"))
         if gen:
             print("[setup] scorer login ->", u, "/", p, flush=True)
     vu, vp = os.environ.get("VIEWER_USER"), os.environ.get("VIEWER_PASS")
     if vu and vp:
-        c.execute("INSERT OR REPLACE INTO users VALUES(?,?,?)", (vu, generate_password_hash(vp), "viewer"))
+        c.execute("INSERT INTO users VALUES(?,?,?) ON CONFLICT (username) DO UPDATE SET pw=EXCLUDED.pw, role=EXCLUDED.role",
+                   (vu, generate_password_hash(vp), "viewer"))
     c.commit()
     c.close()
     return key
@@ -38,10 +64,7 @@ app.config.update(SESSION_COOKIE_SAMESITE="Lax", PERMANENT_SESSION_LIFETIME=time
 
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB)
-        g.db.execute("CREATE TABLE IF NOT EXISTS matches "
-                     "(id INTEGER PRIMARY KEY, data TEXT NOT NULL, updated REAL NOT NULL)")
-        g.db.execute("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
+        g.db = _Wrap(_connect())
     return g.db
 
 
@@ -246,7 +269,8 @@ def save_user():
     if role not in ("scorer", "viewer") or (u == session["u"] and role != "scorer"):
         return jsonify(error="Invalid role"), 400
     c = db()
-    c.execute("INSERT OR REPLACE INTO users VALUES(?,?,?)", (u, generate_password_hash(p), role))
+    c.execute("INSERT INTO users VALUES(?,?,?) ON CONFLICT (username) DO UPDATE SET pw=EXCLUDED.pw, role=EXCLUDED.role",
+               (u, generate_password_hash(p), role))
     c.commit()
     return jsonify(ok=True)
 
