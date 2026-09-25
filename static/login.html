@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Login · Tournament Scorer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;font:16px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#14201a;background:linear-gradient(135deg,#0b3d2a,#177a4a 55%,#ea580c)}
+.c{width:100%;max-width:400px;background:#fff;border-radius:20px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+h1{margin:0 0 4px;font-size:24px}.m{color:#66756c;font-size:14px;margin:0 0 16px}
+.tabs{display:flex;background:#eef2ef;border-radius:12px;padding:3px;margin-bottom:12px}
+.t{flex:1;border:0;background:transparent;padding:10px;border-radius:10px;font:inherit;font-weight:700;color:#66756c;cursor:pointer}.t.on{background:#177a4a;color:#fff}
+input{width:100%;padding:12px;margin:6px 0;border:1px solid #d5ddd8;border-radius:10px;font:inherit}
+.go{width:100%;margin-top:8px;padding:14px;border:0;border-radius:12px;background:#177a4a;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+#err{color:#c0392b;min-height:20px;font-size:14px;margin-top:8px}
+</style></head><body><div class="c"><h1>🏆 Tournament Scorer</h1><p class="m" id="hint"></p>
+<div class="tabs"><button type="button" class="t" data-r="scorer" onclick="setRole('scorer')">🏏 Scorer login</button><button type="button" class="t" data-r="viewer" onclick="setRole('viewer')">👀 Viewer login</button></div>
+<form><input id="u" placeholder="Username" autocomplete="username" autocapitalize="none" required><input id="p" type="password" placeholder="Password" autocomplete="current-password" required><button class="go">Log in</button><div id="err"></div></form></div>
+<script>
+let role='scorer';const $=s=>document.querySelector(s);
+function setRole(r){role=r;document.querySelectorAll('.t').forEach(b=>b.classList.toggle('on',b.dataset.r==r));$('#hint').textContent=r=='scorer'?'For people who enter and update scores':'For people who only watch the scores'}
+$('form').onsubmit=async e=>{e.preventDefault();$('#err').textContent='';
+ const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('#u').value.trim(),password:$('#p').value,role})});
+ if(r.ok)location='/';else $('#err').textContent=(await r.json().catch(()=>({}))).error||'Login failed'};
+setRole('scorer');
+</script></body></html>
